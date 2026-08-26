@@ -9,9 +9,14 @@ from pathlib import Path
 from ...util.db import load_json
 from ...util.paths import electron_app_support, slugify_path, uri_to_path
 
+#: Proves a candidate directory is the one holding history rather than an empty
+#: shell — see `electron_app_support`.
+STATE_DB = "User/globalStorage/state.vscdb"
+
 
 def app_support() -> Path:
-    return electron_app_support("Cursor", env_override="CURSOR_APP_SUPPORT")
+    return electron_app_support("Cursor", env_override="CURSOR_APP_SUPPORT",
+                                marker=STATE_DB)
 
 
 def user_dir() -> Path:

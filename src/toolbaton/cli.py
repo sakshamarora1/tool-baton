@@ -23,6 +23,7 @@ from .platforms.base import (
     WriteOptions,
     WriteResult,
 )
+from .util import wsl
 from .util.paths import default_output_dir
 
 DEFAULT_PREFIX = "[baton] "
@@ -111,6 +112,10 @@ def cmd_doctor(args) -> int:
     say(f"tool-baton {__version__}")
     say(f"project      {args.project}")
     say(f"default out  {default_output_dir(args.project)}")
+    if wsl.is_wsl():
+        home = wsl.windows_home()
+        say(f"environment  WSL ({wsl.distro() or 'distro unknown'}), "
+            f"windows home {home or 'not found'}")
     say("")
     found = 0
     for platform in platforms.all_platforms():
@@ -125,6 +130,9 @@ def cmd_doctor(args) -> int:
     if not found:
         say("no supported agent found. Check CURSOR_APP_SUPPORT / CLAUDE_CONFIG_DIR "
             "if your install is in a non-standard location.")
+        if wsl.is_wsl():
+            say("under WSL, a Windows-side editor is found through the drive "
+                "mounts; set BATON_WINDOWS_HOME if your profile is elsewhere.")
         return 1
     say(f"{found} agent(s) detected. `baton platforms` shows what each can do.")
     return 0
@@ -476,7 +484,8 @@ def build_parser() -> argparse.ArgumentParser:
     common.add_argument("--to", dest="target_platform", default="claude-code",
                         help="destination platform (see `baton platforms`)")
     common.add_argument("--source", default="auto",
-                        help="adapter-specific sub-source, e.g. auto|sqlite|transcripts")
+                        help="adapter-specific sub-source, e.g. "
+                             "auto|sqlite|transcripts|chats")
     common.add_argument("--since", default="",
                         help="drop conversations older than this ISO date, e.g. 2026-01")
     common.add_argument("--limit", type=int, default=0,

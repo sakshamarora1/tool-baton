@@ -24,7 +24,7 @@ from ..base import (
     WriteOptions,
     WriteResult,
 )
-from . import paths, reader, transcripts, writer
+from . import chats, paths, reader, transcripts, writer
 
 
 class Cursor(Platform):
@@ -50,6 +50,8 @@ class Cursor(Platform):
                  f"  workspaceStorage {paths.workspace_storage()}",
                  f"  project dir      {paths.project_dir(project)}",
                  f"  transcripts      {n_transcripts} file(s)",
+                 f"  chat stores      {len(chats.sessions_under(project))} "
+                 f"session(s) in {chats.chats_dir()}",
                  f"  skills           {skills}",
                  f"  plans            {n_plans} file(s)"]
         for workspace in paths.workspaces_under(project):
@@ -59,18 +61,25 @@ class Cursor(Platform):
     # -- read --------------------------------------------------------------- #
 
     def read(self, options: ReadOptions) -> list[Conversation]:
-        """Read both stores and merge.
+        """Read all three stores and merge.
 
+        Cursor keeps the same thread in up to three places at different fidelity.
         The SQLite store has every thread but a noisier message stream; the JSONL
-        transcripts are cleaner but cover only recent ones. `auto` takes the
-        cleaner bodies where they exist and the richer metadata always.
+        transcripts are cleaner but cover only recent ones and drop tool results;
+        the blob store keeps results and reasoning but is newer still. All three
+        key on the same id, so `auto` layers them cleanest-last and keeps the
+        richer metadata throughout.
         """
         self.require(READ)
         from_sqlite: list[Conversation] = []
         from_transcripts: list[Conversation] = []
+        from_chats: list[Conversation] = []
 
         if options.source in ("auto", "transcripts"):
             from_transcripts = transcripts.load_transcripts(options.project)
+
+        if options.source in ("auto", "chats"):
+            from_chats = chats.load_chats(options.project)
 
         if options.source in ("auto", "sqlite"):
             if paths.global_db().exists():
@@ -82,10 +91,19 @@ class Cursor(Platform):
                 raise FileNotFoundError(
                     f"Cursor database not found at {paths.global_db()}")
 
-        return ir_mod.merge_sources(from_sqlite, from_transcripts)
+        merged = ir_mod.merge_sources(from_sqlite, from_transcripts)
+        return ir_mod.merge_sources(merged, from_chats)
 
     def read_prompts(self, project: Path) -> list[str]:
-        return reader.prompts(project) if paths.global_db().exists() else []
+        """Prompts from the blob store, plus the database's own if it is there.
+
+        The blob store is the only source that works without reaching the editor's
+        database, which is what gives prompt recall on Linux and WSL.
+        """
+        out = chats.prompts(project)
+        if paths.global_db().exists():
+            out += reader.prompts(project)
+        return out
 
     # -- write -------------------------------------------------------------- #
 

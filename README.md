@@ -236,6 +236,11 @@ Every migrated thread opens with a note saying it came from another agent and
 that tool output is historical — so a resumed thread does not act on stale file
 contents.
 
+Cursor's blob store (`~/.cursor/chats`) is the exception: it keeps real tool
+results, so threads read from it carry genuine output rather than a synthesised
+placeholder. `baton inventory` names it in the `source` column, and where a thread
+exists in more than one of Cursor's stores the richest version wins.
+
 ---
 
 ## Secrets
@@ -296,6 +301,43 @@ data.
 
 ---
 
+## Windows Subsystem for Linux
+
+WSL is supported, and `baton doctor` reports what it resolved:
+
+```
+environment  WSL (Ubuntu), windows home /mnt/c/Users/you
+```
+
+The complication is that "where does this agent keep its data" has two answers at
+once. An agent installed *inside* the distribution stores things exactly where any
+Linux install would, but Cursor is usually the Windows build, and a Windows
+application writes to the Windows volume:
+
+| Store | Location under WSL |
+|---|---|
+| Claude Code sessions, `history.jsonl` | `~/.claude` |
+| Cursor transcripts, rules, plans, skills | `~/.cursor/projects/<slug>` |
+| Cursor blob chat store | `~/.cursor/chats/<hash>/<agentId>` |
+| Cursor chat database, `workspaceStorage` | `/mnt/c/Users/you/AppData/Roaming/Cursor/User` |
+
+The Windows profile is found through the drive mounts, so normally there is
+nothing to configure. Set `BATON_WINDOWS_HOME` if yours is somewhere unusual, or
+`CURSOR_APP_SUPPORT` to name the directory outright. A custom `automount.root` in
+`/etc/wsl.conf` is honoured.
+
+One thing to be aware of: `~/.cursor-server/data/User/globalStorage` exists under
+WSL and looks like the right place, but holds no chat history. The history is on
+the Windows side.
+
+Two details are worth knowing if you are debugging attribution. Cursor records the
+same WSL file several ways — `vscode-remote://wsl+ubuntu/...`,
+`file://wsl.localhost/Ubuntu/...`, `file://wsl$/Ubuntu/...` — and all of them
+resolve to the Linux path. A path belonging to a *different* distribution is
+ignored, because it is not reachable from inside this one.
+
+---
+
 ## Development
 
 ```bash
@@ -319,10 +361,10 @@ src/toolbaton/
 ├── redact.py         secret scrubbing
 ├── knowledge.py      repo map, hot files, prompt themes
 ├── rules.py          bidirectional instruction translation
-├── util/             shared paths and safe SQLite reads
+├── util/             shared paths, WSL translation, safe SQLite reads
 └── platforms/
     ├── base.py       the adapter contract
-    ├── cursor/       reader, transcripts, writer
+    ├── cursor/       reader, transcripts, chats, writer
     ├── claude_code/  reader, writer, retitle, history
     └── markdown/     writer
 ```

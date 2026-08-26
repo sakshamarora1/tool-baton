@@ -50,10 +50,12 @@ each other.** Adding an agent is therefore one reader plus one writer — never 
 pairwise integration with every other agent. When adding a feature, ask whether
 it belongs in the IR (true of every agent) or in one adapter (true of one).
 
-`merge_sources()` exists because a single agent can store the same thread twice
-at different fidelity. Cursor is the case in point: its SQLite store has every
-thread but a noisy message stream, while its JSONL transcripts are clean but only
-cover recent ones. The merge takes transcript *bodies* and SQLite *metadata*.
+`merge_sources()` exists because a single agent can store the same thread more
+than once at different fidelity. Cursor is the case in point, with three stores
+keyed on the same id: its SQLite store has every thread but a noisy message
+stream, its JSONL transcripts are clean but cover only recent ones and drop tool
+results, and its blob store (`~/.cursor/chats`) keeps results and reasoning but is
+newer still. `read()` layers them cleanest-last and keeps SQLite's metadata.
 
 ### Platforms
 
@@ -74,7 +76,23 @@ than left guessing.
 
 `DetectOnly` subclasses only need `name`, `label` and `paths`.
 
-### Four format landmines
+### Paths are not all POSIX
+
+`util/wsl.py` holds every `/mnt`-shaped assumption; nothing else may grow one.
+Under WSL an agent installed inside the distribution stores where any Linux
+install would, but a Windows-hosted Cursor keeps its data on the Windows volume,
+which is why `electron_app_support` takes a `marker` and picks the candidate that
+actually contains it rather than choosing by platform.
+
+`uri_to_path` must return `None` for anything it does not recognise. It once
+stripped a fixed `file://` prefix, so a URI with a non-empty authority became a
+*relative* path, resolved against the cwd, and landed inside the project being
+migrated — silently attributing another project's history to it. Cursor spells one
+WSL file four ways (`vscode-remote://wsl+<distro>`, `file://wsl.localhost/...`,
+`file://wsl$/...`, and POSIX paths with backslashes), and a path in another
+distribution is deliberately dropped because it is not reachable.
+
+### Five format landmines
 
 These are undocumented behaviours of the target agents. Each was found by
 experiment, and each fails silently or at runtime rather than at write time.
@@ -99,6 +117,14 @@ experiment, and each fails silently or at runtime rather than at write time.
    nothing else: no HTML comment, no heading marker. `retitle.py` exists to
    repair sessions written before this was understood, and keeps `summary` in
    step with the first turn.
+
+5. **`latestRootBlobId` is not the conversation.** In `~/.cursor/chats`, every
+   turn writes a new node listing the whole sequence so far, and the id in `meta`
+   names the agent's *live context*. After `/summarize` they diverge completely:
+   on a real 184-message thread it pointed at a three-message context whose
+   history had been replaced by a précis, while the full thread sat in a node
+   nothing referenced. `chats.py::conversation_refs` therefore takes the node
+   covering the most messages and uses the recorded id only to break a tie.
 
 ### Two hard invariants
 

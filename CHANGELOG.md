@@ -6,6 +6,33 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **WSL support.** Under WSL an agent installed inside the distribution needs no
+  help, but a Windows-hosted Cursor keeps its user data on the Windows volume.
+  That location is now discovered through the drive mounts, overridable with
+  `BATON_WINDOWS_HOME`, and `baton doctor` reports the distribution and the
+  profile it resolved. `util/wsl.py` holds every `/mnt`-shaped assumption so no
+  adapter has to learn about it.
+- Cursor's remote path spellings are understood: `vscode-remote://wsl+<distro>`,
+  `file://wsl.localhost/<distro>`, `file://wsl$/<distro>`, Windows drive letters
+  and POSIX paths written with backslashes. Without these a Windows-hosted Cursor
+  produced no usable history at all under WSL, because attribution depends on the
+  file paths a thread touched and every one of them failed to parse.
+- A reader for Cursor's blob chat store, `~/.cursor/chats/<hash>/<agentId>/`
+  (`--source chats`). It is the only Cursor source that records tool *results*,
+  so threads from it can be written with `--tools blocks` without synthesising
+  anything, and it carries reasoning blocks and an exact working directory. Its
+  `prompt_history.json` also gives prompt recall without touching the editor's
+  database.
+
+### Fixed
+
+- A URI whose authority was not recognised was parsed as a *relative* path, which
+  then resolved against the working directory and could land inside the project
+  being migrated — attributing another project's prompt history to it. Such URIs
+  are now discarded. This was reachable on any platform; WSL just made it common.
+
 ## [0.1.0] — unreleased
 
 First public release.

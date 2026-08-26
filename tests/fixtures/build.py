@@ -8,6 +8,7 @@ depend on — if an agent changes its layout, the fixture is where you encode it
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 import time
@@ -20,6 +21,105 @@ COMPOSER_B = "bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb"
 
 def _ms(days_ago: float) -> int:
     return int((time.time() - days_ago * 86400) * 1000)
+
+
+def _varint(value: int) -> bytes:
+    out = bytearray()
+    while True:
+        byte = value & 0x7F
+        value >>= 7
+        out.append(byte | (0x80 if value else 0))
+        if not value:
+            return bytes(out)
+
+
+def _node(blob_ids: list[str]) -> bytes:
+    """A root node: protobuf field 1 repeated, one 32-byte digest per message."""
+    out = bytearray()
+    for blob_id in blob_ids:
+        digest = bytes.fromhex(blob_id)
+        out += b"\x0a" + _varint(len(digest)) + digest
+    # A trailing field the reader has to step over rather than misread.
+    out += b"\x10" + _varint(7)
+    return bytes(out)
+
+
+def build_cursor_chat_store(cursor_home: Path, project: Path,
+                            session_id: str = COMPOSER_A) -> Path:
+    """A `~/.cursor/chats/<hash>/<agentId>` session.
+
+    The blob store is the only Cursor source that keeps tool *results*, so this
+    encodes the parts the adapter depends on: a hex-encoded `meta` row, a
+    content-addressed `blobs` table, and ordering carried only by a root node.
+
+    It also reproduces the trap that `latestRootBlobId` names the agent's live
+    context rather than the thread: the recorded id points at a post-summarise
+    node holding two records, while the full conversation lives in a node nothing
+    references.
+    """
+    directory = cursor_home / "chats" / "0123456789abcdef" / session_id
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "meta.json").write_text(json.dumps({
+        "schemaVersion": 1, "hasConversation": True,
+        "title": "Add a health check", "cwd": str(project),
+        "createdAtMs": _ms(3), "updatedAtMs": _ms(2),
+    }))
+    (directory / "prompt_history.json").write_text(
+        json.dumps(["newest chat prompt", "older chat prompt"]))
+
+    records = [
+        {"role": "system", "content": "You are an AI coding assistant."},
+        # Cursor's injected preamble arrives as its own turn, with no query in it.
+        {"role": "user", "content": "<user_info>\nOS Version: linux\n</user_info>"},
+        {"role": "user", "content": [{
+            "type": "text",
+            "text": "<timestamp>Monday, Jun 1, 2026, 12:04 PM (UTC+2)</timestamp>\n"
+                    "<user_query>\nAdd a health check endpoint.\n</user_query>"}]},
+        {"role": "assistant", "id": "1", "content": [
+            {"type": "reasoning", "text": "A new route is needed.",
+             "signature": "opaque"},
+            {"type": "text", "text": "Adding the route."},
+            {"type": "tool-call", "toolCallId": "call_1", "toolName": "Write",
+             "args": {"file_path": str(project / "src" / "health.py")}}]},
+        {"role": "tool", "content": [
+            {"type": "tool-result", "toolCallId": "call_1", "toolName": "Write",
+             "result": "wrote 12 lines",
+             "experimental_content": [{"type": "text", "text": "wrote 12 lines"}]}]},
+        {"role": "assistant", "id": "2",
+         "content": [{"type": "text", "text": "Endpoint added."}]},
+    ]
+
+    blobs: dict[str, bytes] = {}
+
+    def put(payload: bytes) -> str:
+        blob_id = hashlib.sha256(payload).hexdigest()
+        blobs[blob_id] = payload
+        return blob_id
+
+    ids = [put(json.dumps(r).encode()) for r in records]
+    put(_node(ids))
+    summarised = put(_node([ids[0], put(json.dumps(
+        {"role": "user",
+         "content": "[Previous conversation summary]: added an endpoint."},
+    ).encode())]))
+
+    conn = sqlite3.connect(directory / "store.db")
+    conn.execute("CREATE TABLE blobs (id TEXT PRIMARY KEY, data BLOB)")
+    conn.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)")
+    conn.executemany("INSERT INTO blobs (id, data) VALUES (?, ?)",
+                     list(blobs.items()))
+    conn.execute("INSERT INTO meta (key, value) VALUES (?, ?)",
+                 ("0", json.dumps({
+                     "agentId": session_id,
+                     "latestRootBlobId": summarised,
+                     "name": "Add a health check",
+                     "mode": "default", "createdAt": _ms(3),
+                     "lastUsedModel": "test-model",
+                     "blobEncryptionKey": "0" * 64,
+                 }).encode().hex()))
+    conn.commit()
+    conn.close()
+    return directory
 
 
 def build_cursor_db(root: Path, project: Path) -> Path:
