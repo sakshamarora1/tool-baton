@@ -1,0 +1,28 @@
+# Migration output — never commit, contains real chat history
+cursor-to-claude-out/
+baton-out/
+*-out/
+*.jsonl.bak-*
+*.vscdb.bak-*
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# uv: no runtime dependencies, so a lockfile adds nothing
+uv.lock

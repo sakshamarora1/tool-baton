@@ -1,0 +1,71 @@
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tool-baton"
+version = "0.1.0"
+description = "Pass your context between AI coding agents: chat history, standing instructions and derived project knowledge."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.9"
+authors = [{ name = "Saksham Arora", email = "sakshamarora1001@gmail.com" }]
+keywords = [
+    "cursor", "claude-code", "ai", "agent", "migration", "chat-history",
+    "developer-tools", "llm",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development",
+    "Topic :: Utilities",
+]
+# No runtime dependencies, on purpose: this tool reads private chat history, so
+# its supply chain should be the standard library and nothing else.
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/sakshamarora1001/tool-baton"
+Issues = "https://github.com/sakshamarora1001/tool-baton/issues"
+Changelog = "https://github.com/sakshamarora1001/tool-baton/blob/main/CHANGELOG.md"
+
+[project.scripts]
+baton = "toolbaton.cli:main"
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "ruff>=0.6"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/toolbaton"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/toolbaton", "tests", "README.md", "LICENSE", "CHANGELOG.md"]
+
+[tool.ruff]
+line-length = 90
+target-version = "py39"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "RUF"]
+ignore = [
+    "B008",    # argparse defaults are evaluated once by design
+    "SIM108",  # ternaries are not always clearer
+    "RUF001",  # the multiplication sign in "3× redaction" is deliberate
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
