@@ -97,9 +97,25 @@ baton migrate   --from cursor --to claude-code     # build into --out
 baton install   --to claude-code                   # apply (dry run without --yes)
 baton retitle   --to claude-code                   # rename already-written threads
 baton export    --from cursor --format ir          # portable JSON bundle
+baton migrate   --from bundle --source b.json      # replay a bundle anywhere
 baton probe     <path>                             # inspect an unsupported agent
 baton clean                                        # remove the build directory
 ```
+
+### Bundles
+
+`bundle` is a source and destination like any other, except it is a file rather
+than an agent. That makes three things possible: migrating off a machine you no
+longer have, migrating *into* an agent that did not exist when the bundle was
+made, and developing an adapter without installing the source agent.
+
+```bash
+baton export  --from cursor --format ir --out ./carry     # on the old machine
+baton migrate --from bundle --source ./carry/bundle.json --to claude-code
+```
+
+`--source` takes the file or the directory holding it; with `--source auto` it
+looks for `bundle.json` in the build directory for `--project`.
 
 ### `doctor`
 
@@ -265,6 +281,7 @@ what `migrate` produced. Pass `--out` if the build needs to outlive a reboot.
 | Cursor | yes | file-based | yes | yes |
 | Claude Code | yes | yes | yes | yes |
 | Markdown | — | yes | — | yes |
+| IR bundle | yes | yes | — | yes |
 | Windsurf, Copilot, Codex, Cline, Continue, Gemini, Qwen, Zed | detect only | — | — | no |
 
 Detect-only agents are listed deliberately rather than omitted: if your agent is

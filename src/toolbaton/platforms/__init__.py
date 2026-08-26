@@ -20,9 +20,10 @@ _IMPLEMENTED = {
     "claude-code": "toolbaton.platforms.claude_code:PLATFORM",
 }
 
-#: Writers that are destinations rather than agents.
+#: Endpoints that are files rather than agents.
 _SINKS = {
     "markdown": "toolbaton.platforms.markdown:PLATFORM",
+    "bundle": "toolbaton.platforms.bundle:PLATFORM",
 }
 
 

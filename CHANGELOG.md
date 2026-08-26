@@ -21,8 +21,10 @@ First public release.
   adapters from agents that are merely detected.
 - `baton probe` — dumps an unsupported agent's storage shape (SQLite schemas,
   key prefixes, JSONL record keys) as the starting point for a new adapter.
-- Markdown archive output, plus a portable JSON bundle (`baton export
-  --format ir`) that can be replayed on another machine.
+- Markdown archive output, plus a portable JSON bundle that is a first-class
+  source and destination (`--from bundle` / `--to bundle`). A bundle can be
+  carried to another machine, replayed into an agent that did not exist when it
+  was made, or used to develop an adapter without installing the source agent.
 - Derived knowledge: repository map, hot-file ranking and prompt themes,
   reconstructed from chat metadata rather than from any agent's index.
 - Secret redaction, on by default, covering provider keys, bearer tokens, JWTs,

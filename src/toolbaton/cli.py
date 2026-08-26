@@ -347,7 +347,8 @@ def cmd_export(args) -> int:
         path = ir.write_bundle(conversations, args.project,
                                args.source_platform, args.out)
         say(f"wrote {path}  ({len(conversations)} conversation(s))")
-        say("Portable: `baton migrate --from bundle` can replay this anywhere.")
+        say(f"Replay it anywhere with:  baton migrate --from bundle "
+            f"--source {path} --to <platform>")
     else:
         result = platforms.get("markdown").write(conversations,
                                                  _write_options(args))

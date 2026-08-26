@@ -75,3 +75,40 @@ def test_tool_results_only_turns_are_not_treated_as_user_messages(claude_env):
     conv = get("claude-code").read(ReadOptions(project=claude_env["project"]))[0]
     # The fixture's tool_result turn is protocol plumbing, not a human turn.
     assert [m.role for m in conv.messages] == ["user", "assistant", "assistant"]
+
+
+def test_bundle_is_a_usable_source(cursor_env, claude_env, tmp_path):
+    """A bundle must be replayable, since `export` tells the user it is."""
+    project = cursor_env["project"]
+    out = tmp_path / "out"
+
+    exported = get("cursor").read(ReadOptions(project=project, source="sqlite"))
+    from toolbaton import ir
+    path = ir.write_bundle(exported, project, "cursor", out)
+
+    replayed = get("bundle").read(ReadOptions(project=project, source=str(path)))
+    assert [c.id for c in replayed] == [c.id for c in exported]
+    assert [len(c.messages) for c in replayed] == [len(c.messages) for c in exported]
+
+    # And it can drive a real write, which is the point of carrying the file.
+    result = get("claude-code").write(
+        replayed, WriteOptions(project=project, out_dir=tmp_path / "from-bundle"))
+    assert any(p.suffix == ".jsonl" for p in result.files)
+
+
+def test_bundle_source_accepts_a_directory(cursor_env, tmp_path):
+    project = cursor_env["project"]
+    out = tmp_path / "out"
+    from toolbaton import ir
+    ir.write_bundle(get("cursor").read(ReadOptions(project=project,
+                                                   source="sqlite")),
+                    project, "cursor", out)
+    assert get("bundle").read(ReadOptions(project=project, source=str(out)))
+
+
+def test_missing_bundle_fails_with_guidance(project, tmp_path):
+    import pytest
+
+    with pytest.raises(FileNotFoundError, match="baton export"):
+        get("bundle").read(ReadOptions(project=project,
+                                       source=str(tmp_path / "nope.json")))
